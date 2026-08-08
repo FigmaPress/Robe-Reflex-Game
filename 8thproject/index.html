@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Rope Reflex</title>
+    <style>
+        /* --- RESET & GLOBAL --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #0b0e14;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+            touch-action: none;
+            overflow: hidden;
+        }
+
+        /* --- GAME WRAPPER --- */
+        #gameWrapper {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            aspect-ratio: 9 / 16;
+            background: linear-gradient(180deg, #141a24 0%, #1a212e 100%);
+            border-radius: 32px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* --- CANVAS --- */
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            touch-action: none;
+            cursor: pointer;
+        }
+
+        /* --- OVERLAY UI (positioned on top of canvas) --- */
+        #uiOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px 18px 28px 18px;
+        }
+
+        /* --- TOP BAR --- */
+        #topBar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0 4px;
+        }
+
+        #scoreDisplay {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(6px);
+            padding: 6px 16px 8px 16px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        #scoreDisplay span {
+            color: #f7c948;
+            font-weight: 700;
+        }
+
+        #highScoreDisplay {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            font-weight: 500;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(4px);
+            padding: 6px 14px 7px 14px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        #highScoreDisplay span {
+            color: #f7c948;
+            font-weight: 600;
+        }
+
+        /* --- STATUS / HINT (bottom) --- */
+        #statusBar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            padding: 0 4px;
+        }
+
+        #statusText {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            padding: 8px 20px 10px 20px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.25s ease;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        #statusText.danger {
+            color: #ff6b6b;
+            border-color: rgba(255, 80, 80, 0.25);
+            background: rgba(255, 50, 50, 0.12);
+        }
+
+        #statusText.success {
+            color: #69db7c;
+            border-color: rgba(80, 255, 120, 0.15);
+            background: rgba(50, 255, 80, 0.08);
+        }
+
+        /* --- GAME OVER OVERLAY --- */
+        #gameOverlay {
+            position: absolute;
+            inset: 0;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            padding: 30px;
+            border-radius: 32px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        #gameOverlay.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        #gameOverlay h1 {
+            color: #fff;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+
+        #gameOverlay .sub {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 16px;
+            font-weight: 400;
+            margin-bottom: 20px;
+        }
+
+        #gameOverlay .finalScore {
+            color: #f7c948;
+            font-size: 52px;
+            font-weight: 800;
+            margin: 4px 0 2px 0;
+        }
+
+        #gameOverlay .finalLabel {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #gameOverlay .bestScore {
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 14px;
+            margin-top: 6px;
+        }
+
+        #restartBtn {
+            pointer-events: auto;
+            margin-top: 28px;
+            background: linear-gradient(135deg, #f7c948, #f5a623);
+            border: none;
+            color: #0b0e14;
+            font-size: 18px;
+            font-weight: 700;
+            padding: 14px 48px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+            box-shadow: 0 8px 30px rgba(247, 201, 72, 0.3);
+            letter-spacing: 0.3px;
+            touch-action: manipulation;
+        }
+
+        #restartBtn:hover {
+            transform: scale(1.03);
+            box-shadow: 0 12px 40px rgba(247, 201, 72, 0.45);
+        }
+        #restartBtn:active {
+            transform: scale(0.95);
+        }
+
+        /* --- RESPONSIVE TWEAKS --- */
+        @media (max-width: 440px) {
+            #gameWrapper {
+                border-radius: 0;
+                max-width: 100%;
+                aspect-ratio: 9 / 16;
+            }
+            #gameOverlay {
+                border-radius: 0;
+            }
+            #scoreDisplay {
+                font-size: 16px;
+                padding: 4px 12px 6px 12px;
+            }
+            #highScoreDisplay {
+                font-size: 12px;
+                padding: 4px 10px 5px 10px;
+            }
+            #statusText {
+                font-size: 12px;
+                padding: 6px 14px 8px 14px;
+                min-width: 70px;
+            }
+            #gameOverlay h1 {
+                font-size: 28px;
+            }
+            #gameOverlay .finalScore {
+                font-size: 40px;
+            }
+            #restartBtn {
+                font-size: 16px;
+                padding: 12px 36px;
+            }
+        }
+
+        @media (max-height: 700px) {
+            #gameOverlay h1 {
+                font-size: 26px;
+            }
+            #gameOverlay .finalScore {
+                font-size: 36px;
+            }
+            #restartBtn {
+                padding: 10px 32px;
+                font-size: 15px;
+                margin-top: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="gameWrapper">
+        <!-- Canvas for the game -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- UI on top of canvas -->
+        <div id="uiOverlay">
+            <div id="topBar">
+                <div id="scoreDisplay">🎯 <span id="scoreNum">0</span></div>
+                <div id="highScoreDisplay">🏆 <span id="highScoreNum">0</span></div>
+            </div>
+            <div id="statusBar">
+                <div id="statusText">⬆️ Hold the rope</div>
+            </div>
+        </div>
+
+        <!-- Game Over overlay -->
+        <div id="gameOverlay">
+            <h1>💔 Cut!</h1>
+            <div class="sub">You touched the rope during a cut</div>
+            <div class="finalLabel">Score</div>
+            <div class="finalScore" id="finalScore">0</div>
+            <div class="bestScore">Best: <span id="finalBest">0</span></div>
+            <button id="restartBtn">↻ Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // --- DOM refs ---
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreNum = document.getElementById('scoreNum');
+            const highScoreNum = document.getElementById('highScoreNum');
+            const statusText = document.getElementById('statusText');
+            const finalScore = document.getElementById('finalScore');
+            const finalBest = document.getElementById('finalBest');
+            const gameOverlay = document.getElementById('gameOverlay');
+            const restartBtn = document.getElementById('restartBtn');
+
+            // --- Canvas sizing ---
+            let W, H, ropeX, ropeWidth;
+
+            function resize() {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                W = rect.width;
+                H = rect.height;
+                canvas.width = W * dpr;
+                canvas.height = H * dpr;
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.scale(dpr, dpr);
+                ropeX = W / 2;
+                ropeWidth = Math.max(10, Math.min(22, W * 0.055));
+            }
+
+            // --- Game state ---
+            const state = {
+                playing: false,
+                gameOver: false,
+                score: 0,
+                highScore: parseInt(localStorage.getItem('ropeReflexHigh') || '0', 10),
+                cuts: [], // { y, passed }
+                speed: 1.2, // px per frame
+                speedIncrease: 0.0004,
+                maxSpeed: 3.8,
+                spawnInterval: 80, // frames between spawns
+                spawnCounter: 0,
+                cutHeight: 0, // will be set based on H
+                minGap: 0, // will be set
+                touchY: null, // current finger Y on rope
+                isTouching: false,
+                wasTouching: false,
+                frame: 0,
+                dangerZone: 0, // visual warning pulse
+                combo: 0,
+                maxCombo: 0,
+            };
+
+            // --- Helper: random range ---
+            const rand = (min, max) => Math.random() * (max - min) + min;
+
+            // --- Spawn a new cut ---
+            function spawnCut() {
+                const margin = state.cutHeight * 1.6;
+                const y = -margin - rand(0, state.cutHeight * 1.2);
+                state.cuts.push({
+                    y: y,
+                    passed: false,
+                    warned: false,
+                });
+            }
+
+            // --- Reset game ---
+            function resetGame() {
+                state.playing = true;
+                state.gameOver = false;
+                state.score = 0;
+                state.cuts = [];
+                state.speed = 1.2;
+                state.spawnCounter = 0;
+                state.touchY = null;
+                state.isTouching = false;
+                state.wasTouching = false;
+                state.frame = 0;
+                state.dangerZone = 0;
+                state.combo = 0;
+                state.maxCombo = 0;
+                gameOverlay.classList.remove('active');
+                statusText.textContent = '⬆️ Hold the rope';
+                statusText.className = '';
+                updateScoreUI();
+
+                // Spawn first cut after a delay
+                state.spawnCounter = -30;
+            }
+
+            // --- Game Over ---
+            function endGame() {
+                if (state.gameOver) return;
+                state.gameOver = true;
+                state.playing = false;
+
+                // Update high score
+                if (state.score > state.highScore) {
+                    state.highScore = state.score;
+                    localStorage.setItem('ropeReflexHigh', String(state.highScore));
+                }
+
+                finalScore.textContent = state.score;
+                finalBest.textContent = state.highScore;
+                gameOverlay.classList.add('active');
+                statusText.textContent = '💔 Game Over';
+                statusText.className = 'danger';
+                updateScoreUI();
+            }
+
+            // --- UI updates ---
+            function updateScoreUI() {
+                scoreNum.textContent = state.score;
+                highScoreNum.textContent = state.highScore;
+            }
+
+            // --- Check if finger is on rope ---
+            function isFingerOnRope() {
+                if (!state.isTouching || state.touchY === null) return false;
+                const half = ropeWidth / 2;
+                // The finger is considered "on the rope" if it's within the rope's width
+                // We track touchX from events, but we only care about Y position on the rope
+                // The rope spans the full height, so any touch within the rope's X range counts
+                return true; // we filter by X in the event handlers
+            }
+
+            // --- Main update ---
+            function update() {
+                if (!state.playing || state.gameOver) return;
+
+                state.frame++;
+
+                // --- Speed up gradually ---
+                if (state.speed < state.maxSpeed) {
+                    state.speed += state.speedIncrease;
+                }
+
+                // --- Spawn cuts ---
+                state.spawnCounter++;
+                const spawnRate = Math.max(30, state.spawnInterval - state.score * 0.4);
+                if (state.spawnCounter >= spawnRate) {
+                    state.spawnCounter = 0;
+                    spawnCut();
+                    // Sometimes spawn two close together for extra challenge
+                    if (state.score > 5 && Math.random() < 0.2) {
+                        spawnCut();
+                    }
+                }
+
+                // --- Move cuts & check collisions ---
+                const touchY = state.touchY;
+                const isTouching = state.isTouching;
+
+                for (let i = state.cuts.length - 1; i >= 0; i--) {
+                    const cut = state.cuts[i];
+                    cut.y += state.speed;
+
+                    // Remove if off screen (top)
+                    if (cut.y > H + state.cutHeight * 2) {
+                        state.cuts.splice(i, 1);
+                        continue;
+                    }
+
+                    // Check if this cut passes the finger
+                    if (touchY !== null && !cut.passed) {
+                        const cutTop = cut.y - state.cutHeight / 2;
+                        const cutBottom = cut.y + state.cutHeight / 2;
+
+                        // The cut passes through the finger's Y position
+                        if (cutTop <= touchY && cutBottom >= touchY) {
+                            cut.passed = true;
+
+                            // If the player is touching the rope when a cut passes → GAME OVER
+                            if (isTouching) {
+                                endGame();
+                                return;
+                            } else {
+                                // Success! Player lifted their finger
+                                state.score++;
+                                state.combo++;
+                                if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+                                updateScoreUI();
+
+                                // Visual feedback
+                                statusText.textContent = '✅ Pass!';
+                                statusText.className = 'success';
+                                clearTimeout(window.statusTimeout);
+                                window.statusTimeout = setTimeout(() => {
+                                    if (!state.gameOver) {
+                                        statusText.textContent = '⬆️ Hold the rope';
+                                        statusText.className = '';
+                                    }
+                                }, 300);
+
+                                // Speed up a bit more on success
+                                state.speed = Math.min(state.maxSpeed, state.speed + 0.008);
+
+                                // Spawn a new cut sooner
+                                state.spawnCounter = Math.max(0, state.spawnCounter - 5);
+                            }
+                        }
+                    }
+
+                    // Warning: cut approaching
+                    if (touchY !== null && !cut.passed && !cut.warned) {
+                        const dist = cut.y - touchY;
+                        if (dist > 0 && dist < state.cutHeight * 1.8) {
+                            cut.warned = true;
+                            statusText.textContent = '⚠️ Lift off!';
+                            statusText.className = 'danger';
+                            clearTimeout(window.statusTimeout);
+                            window.statusTimeout = setTimeout(() => {
+                                if (!state.gameOver && !cut.passed) {
+                                    // Only clear if the cut hasn't passed yet
+                                    const stillApproaching = state.cuts.some(c =>
+                                        !c.passed && c.y > touchY - state.cutHeight && c.y < touchY + state
+                                        .cutHeight * 1.2
+                                    );
+                                    if (!stillApproaching) {
+                                        statusText.textContent = '⬆️ Hold the rope';
+                                        statusText.className = '';
+                                    }
+                                }
+                            }, 400);
+                        }
+                    }
+                }
+
+                // --- Clean up status if no cuts near ---
+                if (state.isTouching && !state.gameOver) {
+                    const hasNearCut = state.cuts.some(c => {
+                        if (c.passed) return false;
+                        if (state.touchY === null) return false;
+                        const dist = Math.abs(c.y - state.touchY);
+                        return dist < state.cutHeight * 1.2;
+                    });
+                    if (!hasNearCut && statusText.textContent.includes('Lift')) {
+                        statusText.textContent = '⬆️ Hold the rope';
+                        statusText.className = '';
+                    }
+                }
+
+                // --- Difficulty: if player is doing well, make cuts trickier ---
+                if (state.score > 10 && state.score % 5 === 0) {
+                    // Slightly randomize cut height
+                }
+            }
+
+            // --- Rendering ---
+            function draw() {
+                ctx.clearRect(0, 0, W, H);
+
+                // --- Background subtle grid ---
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,255,255,0.015)';
+                ctx.lineWidth = 1;
+                for (let y = 0; y < H; y += 30) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(W, y);
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // --- Glow behind rope ---
+                const grad = ctx.createRadialGradient(ropeX, H / 2, 0, ropeX, H / 2, ropeWidth * 8);
+                grad.addColorStop(0, 'rgba(255,255,255,0.03)');
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, W, H);
+
+                // --- Draw the rope ---
+                const halfW = ropeWidth / 2;
+
+                // Rope shadow
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 20;
+
+                // Main rope body
+                const ropeGrad = ctx.createLinearGradient(ropeX - halfW, 0, ropeX + halfW, 0);
+                ropeGrad.addColorStop(0, '#1a1a1a');
+                ropeGrad.addColorStop(0.3, '#3a3a3a');
+                ropeGrad.addColorStop(0.5, '#4a4a4a');
+                ropeGrad.addColorStop(0.7, '#3a3a3a');
+                ropeGrad.addColorStop(1, '#1a1a1a');
+
+                ctx.shadowColor = 'rgba(0,0,0,0.4)';
+                ctx.shadowBlur = 12;
+
+                // Draw rope as a series of segments with cuts
+                // We'll draw the rope in sections, skipping cut areas
+
+                const cutPositions = state.cuts.map(c => c.y);
+                const cutHeight = state.cutHeight;
+
+                // Sort cuts by y
+                const sortedCuts = [...state.cuts].sort((a, b) => a.y - b.y);
+
+                // Draw rope from top to bottom with gaps
+                let lastY = -10;
+
+                // Helper to draw a rope segment
+                function drawRopeSegment(y1, y2) {
+                    if (y2 - y1 < 2) return;
+                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                    ctx.shadowBlur = 10;
+                    ctx.fillStyle = ropeGrad;
+                    // Rounded rect for rope segment
+                    const radius = halfW * 0.5;
+                    const x = ropeX - halfW;
+                    const w = ropeWidth;
+                    const h = y2 - y1;
+                    ctx.beginPath();
+                    ctx.moveTo(x + radius, y1);
+                    ctx.lineTo(x + w - radius, y1);
+                    ctx.quadraticCurveTo(x + w, y1, x + w, y1 + radius);
+                    ctx.lineTo(x + w, y2 - radius);
+                    ctx.quadraticCurveTo(x + w, y2, x + w - radius, y2);
+                    ctx.lineTo(x + radius, y2);
+                    ctx.quadraticCurveTo(x, y2, x, y2 - radius);
+                    ctx.lineTo(x, y1 + radius);
+                    ctx.quadraticCurveTo(x, y1, x + radius, y1);
+                    ctx.fill();
+                }
+
+                // Rope highlight (thin bright edge)
+                function drawRopeHighlight(y1, y2) {
+                    if (y2 - y1 < 2) return;
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+                    ctx.lineWidth = 1;
+                    const x = ropeX - halfW + 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y1);
+                    ctx.lineTo(x, y2);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(ropeX + halfW - 2, y1);
+                    ctx.lineTo(ropeX + halfW - 2, y2);
+                    ctx.stroke();
+                }
+
+                // Build segments between cuts
+                let segments = [];
+                let startY = -10;
+
+                for (const cut of sortedCuts) {
+                    const cutTop = cut.y - cutHeight / 2;
+                    const cutBottom = cut.y + cutHeight / 2;
+
+                    if (cutTop > startY + 2) {
+                        segments.push({ y1: startY, y2: cutTop });
+                    }
+                    startY = cutBottom;
+                }
+                if (startY < H + 20) {
+                    segments.push({ y1: startY, y2: H + 20 });
+                }
+
+                // Draw all segments
+                for (const seg of segments) {
+                    const y1 = Math.max(0, seg.y1);
+                    const y2 = Math.min(H, seg.y2);
+                    if (y2 > y1) {
+                        drawRopeSegment(y1, y2);
+                        drawRopeHighlight(y1, y2);
+                    }
+                }
+
+                // --- Draw cuts (gaps) with visual effects ---
+                for (const cut of state.cuts) {
+                    const cy = cut.y;
+                    const halfH = cutHeight / 2;
+                    const top = cy - halfH;
+                    const bottom = cy + halfH;
+
+                    // Only draw if visible
+                    if (bottom < -10 || top > H + 10) continue;
+
+                    // Glow around cut
+                    const gradCut = ctx.createRadialGradient(ropeX, cy, 0, ropeX, cy, cutHeight * 1.6);
+                    const alpha = cut.passed ? 0.08 : 0.2;
+                    gradCut.addColorStop(0, `rgba(255,60,60,${alpha})`);
+                    gradCut.addColorStop(0.5, `rgba(255,30,30,${alpha * 0.5})`);
+                    gradCut.addColorStop(1, 'rgba(255,0,0,0)');
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = gradCut;
+                    ctx.beginPath();
+                    ctx.arc(ropeX, cy, cutHeight * 1.6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Red "cut" indicator lines on the sides
+                    ctx.shadowBlur = 0;
+                    const lineLen = halfW * 0.6;
+                    const lineGap = halfW * 0.3;
+
+                    // Left side
+                    ctx.strokeStyle = cut.passed ? 'rgba(100,255,100,0.2)' : 'rgba(255,80,80,0.35)';
+                    ctx.lineWidth = 2;
+                    const lx = ropeX - halfW - 4;
+                    ctx.beginPath();
+                    ctx.moveTo(lx, cy - lineLen);
+                    ctx.lineTo(lx, cy - lineGap);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(lx, cy + lineGap);
+                    ctx.lineTo(lx, cy + lineLen);
+                    ctx.stroke();
+
+                    // Right side
+                    const rx = ropeX + halfW + 4;
+                    ctx.strokeStyle = cut.passed ? 'rgba(100,255,100,0.2)' : 'rgba(255,80,80,0.35)';
+                    ctx.beginPath();
+                    ctx.moveTo(rx, cy - lineLen);
+                    ctx.lineTo(rx, cy - lineGap);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(rx, cy + lineGap);
+                    ctx.lineTo(rx, cy + lineLen);
+                    ctx.stroke();
+
+                    // Small "X" or warning icon at the cut center (subtle)
+                    if (!cut.passed) {
+                        ctx.fillStyle = 'rgba(255,60,60,0.08)';
+                        ctx.font = `${cutHeight * 0.5}px "Segoe UI", sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('✕', ropeX, cy);
+                    } else {
+                        // Small checkmark for passed cuts
+                        ctx.fillStyle = 'rgba(100,255,100,0.05)';
+                        ctx.font = `${cutHeight * 0.4}px "Segoe UI", sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('✓', ropeX, cy);
+                    }
+                }
+
+                // --- Draw the player's finger indicator ---
+                if (state.touchY !== null && state.isTouching && !state.gameOver) {
+                    const ty = state.touchY;
+
+                    // Glow ring around finger
+                    const pulse = 0.7 + 0.3 * Math.sin(state.frame * 0.06);
+                    ctx.shadowBlur = 0;
+                    const ringGrad = ctx.createRadialGradient(ropeX, ty, 0, ropeX, ty, ropeWidth * 3 * pulse);
+                    ringGrad.addColorStop(0, 'rgba(255,255,255,0.05)');
+                    ringGrad.addColorStop(0.5, 'rgba(255,255,255,0.02)');
+                    ringGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = ringGrad;
+                    ctx.beginPath();
+                    ctx.arc(ropeX, ty, ropeWidth * 3 * pulse, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Finger dot on rope
+                    ctx.shadowColor = 'rgba(255,255,255,0.15)';
+                    ctx.shadowBlur = 20;
+                    const dotGrad = ctx.createRadialGradient(ropeX, ty, 0, ropeX, ty, ropeWidth * 0.9);
+                    dotGrad.addColorStop(0, 'rgba(255,255,255,0.6)');
+                    dotGrad.addColorStop(0.5, 'rgba(255,255,255,0.15)');
+                    dotGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                    ctx.fillStyle = dotGrad;
+                    ctx.beginPath();
+                    ctx.arc(ropeX, ty, ropeWidth * 0.9, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Small inner glow
+                    ctx.shadowBlur = 8;
+                    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                    ctx.beginPath();
+                    ctx.arc(ropeX, ty, ropeWidth * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Reset shadow
+                    ctx.shadowBlur = 0;
+                }
+
+                // --- Draw a subtle scan line effect ---
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255,255,255,0.008)';
+                ctx.fillRect(0, 0, W, 2);
+
+                // --- Border vignette ---
+                const vigGrad = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.9);
+                vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+                vigGrad.addColorStop(1, 'rgba(0,0,0,0.2)');
+                ctx.fillStyle = vigGrad;
+                ctx.fillRect(0, 0, W, H);
+            }
+
+            // --- Game loop ---
+            function gameLoop() {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // --- Touch / Mouse Events ---
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                let clientX, clientY;
+                if (e.touches) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                    e.preventDefault();
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                const scaleX = W / rect.width;
+                const scaleY = H / rect.height;
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                return { x, y };
+            }
+
+            function handleStart(e) {
+                e.preventDefault();
+                if (state.gameOver) return;
+
+                const pos = getPos(e);
+                const halfW = ropeWidth / 2;
+                // Check if touch is on the rope (within its width)
+                if (pos.x >= ropeX - halfW && pos.x <= ropeX + halfW) {
+                    state.isTouching = true;
+                    state.touchY = pos.y;
+                    state.wasTouching = true;
+
+                    if (!state.playing && !state.gameOver) {
+                        resetGame();
+                    }
+
+                    statusText.textContent = '⬆️ Hold the rope';
+                    statusText.className = '';
+                } else {
+                    // Touch outside rope - only allow if game hasn't started
+                    if (!state.playing && !state.gameOver) {
+                        // Still allow start by touching anywhere
+                        resetGame();
+                        state.isTouching = true;
+                        state.touchY = pos.y;
+                        state.wasTouching = true;
+                    }
+                }
+            }
+
+            function handleMove(e) {
+                e.preventDefault();
+                if (state.gameOver) return;
+                const pos = getPos(e);
+                const halfW = ropeWidth / 2;
+                if (pos.x >= ropeX - halfW && pos.x <= ropeX + halfW) {
+                    state.isTouching = true;
+                    state.touchY = pos.y;
+                    state.wasTouching = true;
+                } else {
+                    // Finger moved off the rope - but we keep isTouching as true
+                    // only if they're still touching the screen
+                    // Actually, we track isTouching based on touch presence
+                    // The X position determines if they're on the rope
+                    // But if they move off the rope, they're still touching the screen
+                    // We need to differentiate: isTouching = finger is on screen,
+                    // isOnRope = finger is on the rope
+                    // For the game, isTouching means "finger is on the rope"
+                    // So if they move off, we set isTouching = false
+                    state.isTouching = false;
+                    // But we keep touchY for reference
+                    state.touchY = pos.y;
+                }
+            }
+
+            function handleEnd(e) {
+                e.preventDefault();
+                state.isTouching = false;
+                state.touchY = null;
+
+                if (!state.gameOver && state.playing) {
+                    statusText.textContent = '⬆️ Hold the rope';
+                    statusText.className = '';
+                }
+            }
+
+            function handleCancel(e) {
+                e.preventDefault();
+                state.isTouching = false;
+                state.touchY = null;
+            }
+
+            // --- Register events ---
+            // Touch
+            canvas.addEventListener('touchstart', handleStart, { passive: false });
+            canvas.addEventListener('touchmove', handleMove, { passive: false });
+            canvas.addEventListener('touchend', handleEnd, { passive: false });
+            canvas.addEventListener('touchcancel', handleCancel, { passive: false });
+
+            // Mouse
+            canvas.addEventListener('mousedown', handleStart);
+            canvas.addEventListener('mousemove', (e) => {
+                if (e.buttons === 1) {
+                    handleMove(e);
+                }
+            });
+            canvas.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('mouseleave', (e) => {
+                if (e.buttons === 1) {
+                    handleEnd(e);
+                }
+            });
+
+            // --- Restart button ---
+            restartBtn.addEventListener('click', () => {
+                resetGame();
+            });
+            restartBtn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                resetGame();
+            });
+
+            // --- Prevent context menu on canvas ---
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            // --- Initialize ---
+            function init() {
+                resize();
+                state.cutHeight = Math.max(30, Math.min(60, H * 0.08));
+                state.minGap = state.cutHeight * 0.6;
+                // Show high score
+                highScoreNum.textContent = state.highScore;
+                // Start with game ready
+                state.playing = false;
+                state.gameOver = false;
+                statusText.textContent = '👆 Tap to start';
+                gameOverlay.classList.remove('active');
+                // Spawn some initial cuts for demo
+                for (let i = 0; i < 3; i++) {
+                    const y = 80 + i * (H / 4) + rand(-20, 20);
+                    state.cuts.push({ y, passed: false, warned: false });
+                }
+                // Start the loop
+                gameLoop();
+            }
+
+            // --- Resize handler ---
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    resize();
+                    state.cutHeight = Math.max(30, Math.min(60, H * 0.08));
+                }, 150);
+            });
+
+            // --- Go! ---
+            init();
+
+            // Also allow tap on the game wrapper to start
+            document.getElementById('gameWrapper').addEventListener('click', (e) => {
+                if (!state.playing && !state.gameOver && e.target === canvas) {
+                    // Click on canvas is handled by mousedown
+                }
+            });
+
+            // If game is idle, click anywhere to start
+            document.getElementById('gameWrapper').addEventListener('mousedown', (e) => {
+                if (!state.playing && !state.gameOver) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = (e.clientX - rect.left) * (W / rect.width);
+                    const y = (e.clientY - rect.top) * (H / rect.height);
+                    resetGame();
+                    state.isTouching = true;
+                    state.touchY = y;
+                    state.wasTouching = true;
+                }
+            });
+
+        })();
+    </script>
+
+</body>
+</html>
